@@ -3,13 +3,16 @@ name: Build Android APK
 on:
   push:
     branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
-  workflow_dispatch:  # Позволяет запускать сборку вручную через вкладку Actions
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
+    
+    # ✅ Используем Node.js 24 для JavaScript-экшенов (убираем предупреждение)
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     
     steps:
       - name: Checkout code
@@ -20,52 +23,72 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Cache Buildozer dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer/android/platform/android-sdk
+            ~/.buildozer/android/platform/android-ndk
+            ~/.buildozer/android/packages
+          key: ${{ runner.os }}-buildozer-${{ hashFiles('**/buildozer.spec') }}
+          restore-keys: |
+            ${{ runner.os }}-buildozer-
+
       - name: Install system dependencies
         run: |
           sudo apt-get update -y
           sudo apt-get install -y \
-            python3-pip \
-            build-essential \
-            git \
-            python3-dev \
-            ffmpeg \
-            libsdl2-dev \
-            libsdl2-image-dev \
-            libsdl2-mixer-dev \
-            libsdl2-ttf-dev \
-            libportmidi-dev \
-            libswscale-dev \
-            libavformat-dev \
-            libavcodec-dev \
-            zlib1g-dev \
-            openjdk-17-jdk \
-            unzip \
-            autoconf \
-            automake \
-            libtool \
-            pkg-config \
-            cmake \
-            libffi-dev
+            python3-pip build-essential git python3-dev \
+            ffmpeg libsdl2-dev libsdl2-image-dev libsdl2-mixer-dev \
+            libsdl2-ttf-dev libportmidi-dev libswscale-dev \
+            libavformat-dev libavcodec-dev zlib1g-dev \
+            openjdk-17-jdk unzip autoconf automake libtool \
+            pkg-config cmake libffi-dev
 
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
           pip install buildozer cython
 
+      # ✅ НОВОЕ: Явно устанавливаем Android SDK Build-Tools (содержит aidl)
+      - name: Install Android Build-Tools (fix AIDL error)
+        run: |
+          # Путь к SDK, который использует Buildozer по умолчанию
+          SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
+          
+          # Принимаем лицензии (обязательно для sdkmanager)
+          yes | "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          
+          # Устанавливаем конкретную версию build-tools (должна совпадать с android.gradle_plugin)
+          # Версия 33.0.2 совместима с android.api = 33 и gradle plugin 7.4.2
+          "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" "build-tools;33.0.2"
+          
+          # Проверяем, что aidl теперь на месте
+          if [ -f "$SDK_DIR/build-tools/33.0.2/aidl" ]; then
+            echo "✅ AIDL found: $SDK_DIR/build-tools/33.0.2/aidl"
+          else
+            echo "❌ AIDL still missing!"
+            ls -la "$SDK_DIR/build-tools/"
+            exit 1
+          fi
+
       - name: Build APK with Buildozer
         run: |
-          cd .github  # ⚠️ Укажите здесь папку, где лежит ваш buildozer
-          # Инициализируем, если файла спецификации нет в репозитории
+          cd .github  # ⚠️ Замените на вашу папку или уберите, если файлы в корне
+          
+          # Проверяем наличие spec-файла
           if [ ! -f buildozer.spec ]; then
+            echo "❌ buildozer.spec not found!"
             buildozer init
           fi
-          # Запускаем сборку (с флагом -v для подробного лога)
+          
+          # ✅ Важно: укажите версию build-tools в spec файле (см. ниже)
           buildozer -v android debug
 
       - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4  # ✅ Обновлено с v3 на v4
+        if: success()
+        uses: actions/upload-artifact@v4
         with:
           name: android-apk
-          path: my_web_app/bin/*.apk      # ⚠️ Путь должен совпадать с папкой сборки выше
-          retention-days: 7               # Сколько хранить файл (по умолчанию 90)
-          compression-level: 6            # Уровень сжатия (0-9)
+          path: my_web_app/bin/*.apk
+          retention-days: 7
