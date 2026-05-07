@@ -54,7 +54,7 @@ jobs:
 
       - name: Build APK with Buildozer
         run: |
-          cd my_web_app  # ⚠️ Укажите здесь папку, где лежит ваш buildozer.spec
+          cd apk-builder  # ⚠️ Укажите здесь папку, где лежит ваш buildozer
           # Инициализируем, если файла спецификации нет в репозитории
           if [ ! -f buildozer.spec ]; then
             buildozer init
