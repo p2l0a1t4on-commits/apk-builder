@@ -1,21 +1,71 @@
 name: Build Android APK
-on: [push, workflow_dispatch]
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Позволяет запускать сборку вручную через вкладку Actions
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Set up Python
-        uses: actions/setup-python@v4
-        with: { python-version: '3.10' }
-      - name: Install Buildozer
-        run: pip install buildozer cython
-      - name: Build APK
-        run: |
-          cd my_web_app
-          buildozer -v android debug
-      - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/setup-python@v5
         with:
-          name: app-release
-          path: my_web_app/bin/*.apk
+          python-version: '3.10'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            python3-pip \
+            build-essential \
+            git \
+            python3-dev \
+            ffmpeg \
+            libsdl2-dev \
+            libsdl2-image-dev \
+            libsdl2-mixer-dev \
+            libsdl2-ttf-dev \
+            libportmidi-dev \
+            libswscale-dev \
+            libavformat-dev \
+            libavcodec-dev \
+            zlib1g-dev \
+            openjdk-17-jdk \
+            unzip \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            cmake \
+            libffi-dev
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install buildozer cython
+
+      - name: Build APK with Buildozer
+        run: |
+          cd my_web_app  # ⚠️ Укажите здесь папку, где лежит ваш buildozer.spec
+          # Инициализируем, если файла спецификации нет в репозитории
+          if [ ! -f buildozer.spec ]; then
+            buildozer init
+          fi
+          # Запускаем сборку (с флагом -v для подробного лога)
+          buildozer -v android debug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4  # ✅ Обновлено с v3 на v4
+        with:
+          name: android-apk
+          path: my_web_app/bin/*.apk      # ⚠️ Путь должен совпадать с папкой сборки выше
+          retention-days: 7               # Сколько хранить файл (по умолчанию 90)
+          compression-level: 6            # Уровень сжатия (0-9)
