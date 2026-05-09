@@ -74,7 +74,7 @@ jobs:
 
       - name: Build APK with Buildozer
         run: |
-          cd .github  # ⚠️ Замените на вашу папку или уберите, если файлы в корне
+          cd .github/buildozer.spec  # ⚠️ Замените на вашу папку или уберите, если файлы в корне
           
           # Проверяем наличие spec-файла
           if [ ! -f buildozer.spec ]; then
