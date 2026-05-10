@@ -83,9 +83,7 @@ jobs:
           
           # Accept licenses non-interactively
           mkdir -p "$ANDROID_HOME/licenses"
-          echo -e "\n8933bad161af4d29920f83372a6b6b2c1d1a3ad2d6926d7293e3995d6717f97b" > "$ANDROID_HOME/licenses/android-sdk-license"
-          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > "$ANDROID_HOME/licenses/android-sdk-preview-license"
-          echo -e "\nd975f751176a0ee99d7317ae8e96cc2b" > "$ANDROID_HOME/licenses/intel-android-extra-license"
+          echo "8933bad161af4d29920f83372a6b6b2c1d1a3ad2d6926d7293e3995d6717f97b" > ...
           
           # Install platforms and build-tools
           sdkmanager --no_https --sdk_root="$ANDROID_HOME" "platforms;android-33"
