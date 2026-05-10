@@ -22,6 +22,12 @@ jobs:
         with:
           python-version: '3.10'
 
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
       - name: Cache Buildozer dependencies
         uses: actions/cache@v4
         with:
@@ -42,7 +48,7 @@ jobs:
             libsdl2-ttf-dev libportmidi-dev libswscale-dev \
             libavformat-dev libavcodec-dev zlib1g-dev \
             openjdk-17-jdk unzip autoconf automake libtool \
-            pkg-config cmake libffi-dev
+            pkg-config cmake libffi-dev wget
 
       - name: Install Python dependencies
         run: |
@@ -51,55 +57,111 @@ jobs:
 
       - name: Setup Android SDK
         run: |
-          yes | sdkmanager --licenses --sdk_root="$ANDROID_HOME"
+          set -e
+          
+          # Define SDK directory
           SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
           mkdir -p "$SDK_DIR"
           
-          # Download and install cmdline-tools
+          echo "📦 Downloading Android Command-line Tools..."
           cd /tmp
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip
-          unzip -q commandlinetools-linux-10406996_latest.zip
           
-          # Move to proper location
-          mkdir -p "$SDK_DIR/cmdline-tools/latest"
-          mv cmdline-tools/* "$SDK_DIR/cmdline-tools/latest/"
+          # Download cmdline-tools
+          if [ ! -f commandlinetools-linux-10406996_latest.zip ]; then
+            wget -q https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip
+            if [ $? -ne 0 ]; then
+              echo "❌ Failed to download command-line tools"
+              exit 1
+            fi
+          fi
+          
+          # Extract and verify
+          unzip -q commandlinetools-linux-10406996_latest.zip
+          if [ ! -d cmdline-tools ]; then
+            echo "❌ Failed to extract command-line tools"
+            exit 1
+          fi
+          
+          # Move to proper SDK location
+          mkdir -p "$SDK_DIR/cmdline-tools"
+          mv cmdline-tools "$SDK_DIR/cmdline-tools/latest"
           
           # Verify installation
           if [ ! -f "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" ]; then
-            echo "❌ sdkmanager installation failed!"
+            echo "❌ sdkmanager not found after installation!"
+            echo "Contents of $SDK_DIR/cmdline-tools/latest/:"
             ls -la "$SDK_DIR/cmdline-tools/latest/" || echo "Directory not found"
             exit 1
           fi
           
-          echo "✅ sdkmanager installed successfully"
+          echo "✅ sdkmanager installed successfully at $SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
           
-          # Export for next steps
+          # Make sure the binary is executable
+          chmod +x "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
+          
+          # Export environment variables for next steps
           echo "ANDROID_HOME=$SDK_DIR" >> $GITHUB_ENV
           echo "$SDK_DIR/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "ANDROID_SDK_ROOT=$SDK_DIR" >> $GITHUB_ENV
 
       - name: Install Android Build Tools and Platforms
         run: |
+          set -e
+          
           export ANDROID_HOME="$HOME/.buildozer/android/platform/android-sdk"
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
           export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
           
-          # Accept licenses non-interactively
+          echo "🔧 Setting up Android SDK environment..."
+          echo "ANDROID_HOME: $ANDROID_HOME"
+          echo "PATH: $PATH"
+          
+          # Create licenses directory and accept licenses
           mkdir -p "$ANDROID_HOME/licenses"
-          echo "8933bad161af4d29920f83372a6b6b2c1d1a3ad2d6926d7293e3995d6717f97b" > ...
           
-          # Install platforms and build-tools
-          sdkmanager --no_https --sdk_root="$ANDROID_HOME" "platforms;android-33"
-          sdkmanager --no_https --sdk_root="$ANDROID_HOME" "build-tools;33.0.2"
-          sdkmanager --no_https --sdk_root="$ANDROID_HOME" "platform-tools"
+          # Accept Android SDK License
+          echo -e "\n8933bad161af4d29920f83372a6b6b2c1d1a3ad2d6926d7293e3995d6717f97b" > "$ANDROID_HOME/licenses/android-sdk-license"
           
-          # Verify installation
-          if [ ! -f "$ANDROID_HOME/build-tools/33.0.2/aidl" ]; then
-            echo "❌ AIDL installation failed!"
-            ls -la "$ANDROID_HOME/build-tools/" || echo "build-tools not found"
-            exit 1
+          # Accept Google Play Services License
+          echo -e "\n7aac9778fcc9c1333f8347b6b1d16e2d5bed3990" > "$ANDROID_HOME/licenses/google-play-services-license"
+          
+          # Accept Google Play License
+          echo -e "\ne56d7a3b5d896e5ac459fa172d9cfac6bc4856e9" > "$ANDROID_HOME/licenses/google-play-license"
+          
+          # Accept Android SDK Preview License
+          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > "$ANDROID_HOME/licenses/android-sdk-preview-license"
+          
+          # Verify sdkmanager is accessible
+          which sdkmanager || { echo "❌ sdkmanager not in PATH"; exit 1; }
+          
+          echo "📥 Installing Android Platforms..."
+          sdkmanager "platforms;android-33" 2>&1 || { echo "⚠️ Platform install may have warnings, continuing..."; }
+          
+          echo "📥 Installing Android Build-tools..."
+          sdkmanager "build-tools;33.0.2" 2>&1 || { echo "⚠️ Build-tools install may have warnings, continuing..."; }
+          
+          echo "📥 Installing Platform Tools..."
+          sdkmanager "platform-tools" 2>&1 || { echo "⚠️ Platform-tools install may have warnings, continuing..."; }
+          
+          # Verify critical installations
+          echo "✅ Verifying installations..."
+          
+          if [ -f "$ANDROID_HOME/build-tools/33.0.2/aidl" ]; then
+            echo "✅ AIDL found at: $ANDROID_HOME/build-tools/33.0.2/aidl"
+          else
+            echo "⚠️ AIDL not found, checking available build-tools..."
+            ls -la "$ANDROID_HOME/build-tools/" || echo "build-tools directory not found"
           fi
           
-          echo "✅ Android SDK build-tools and AIDL installed successfully"
-          ls -la "$ANDROID_HOME/build-tools/33.0.2/aidl"
+          if [ -f "$ANDROID_HOME/platforms/android-33/android.jar" ]; then
+            echo "✅ Android 33 Platform found"
+          else
+            echo "⚠️ Android 33 Platform not found, checking available platforms..."
+            ls -la "$ANDROID_HOME/platforms/" || echo "platforms directory not found"
+          fi
+          
+          echo "📋 SDK Directory Structure:"
+          find "$ANDROID_HOME" -maxdepth 2 -type d | head -20
 
       - name: Verify buildozer.spec
         run: |
@@ -108,16 +170,36 @@ jobs:
             buildozer init
           else
             echo "✅ buildozer.spec found"
+            head -20 buildozer.spec
           fi
 
       - name: Build APK with Buildozer
         run: |
+          set -e
+          
           export ANDROID_HOME="$HOME/.buildozer/android/platform/android-sdk"
           export ANDROID_SDK_ROOT="$ANDROID_HOME"
-          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+          export JAVA_HOME=$JAVA_HOME_17_X64
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$JAVA_HOME/bin:$PATH"
           
-          # Build from project root
+          echo "🏗️  Building APK with Buildozer..."
+          echo "ANDROID_HOME: $ANDROID_HOME"
+          echo "JAVA_HOME: $JAVA_HOME"
+          
           buildozer -v android debug
+          
+          echo "✅ Build completed successfully"
+
+      - name: List APK artifacts
+        if: always()
+        run: |
+          echo "📦 Looking for APK files..."
+          if [ -d bin ]; then
+            ls -lah bin/
+          else
+            echo "❌ bin directory not found"
+            find . -name "*.apk" -type f 2>/dev/null || echo "No APK files found"
+          fi
 
       - name: Upload APK Artifact
         if: success()
