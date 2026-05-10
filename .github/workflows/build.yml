@@ -51,6 +51,7 @@ jobs:
 
       - name: Setup Android SDK
         run: |
+          yes | sdkmanager --licenses --sdk_root="$ANDROID_HOME"
           SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
           mkdir -p "$SDK_DIR"
           
