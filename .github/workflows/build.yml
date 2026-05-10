@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     
-    # ✅ Используем Node.js 24 для JavaScript-экшенов (убираем предупреждение)
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     
@@ -50,20 +49,41 @@ jobs:
           pip install --upgrade pip
           pip install buildozer cython
 
-      # ✅ НОВОЕ: Явно устанавливаем Android SDK Build-Tools (содержит aidl)
+      - name: Install Android SDK Command-line Tools
+        run: |
+          SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
+          mkdir -p "$SDK_DIR"
+          
+          # Download and install cmdline-tools
+          cd /tmp
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip
+          unzip -q commandlinetools-linux-10406996_latest.zip
+          
+          # Move to proper location
+          mkdir -p "$SDK_DIR/cmdline-tools/latest"
+          mv cmdline-tools/* "$SDK_DIR/cmdline-tools/latest/"
+          
+          # Verify installation
+          if [ -f "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" ]; then
+            echo "✅ sdkmanager installed successfully"
+          else
+            echo "❌ sdkmanager installation failed!"
+            exit 1
+          fi
+
       - name: Install Android Build-Tools (fix AIDL error)
         run: |
-          # Путь к SDK, который использует Buildozer по умолчанию
           SDK_DIR="$HOME/.buildozer/android/platform/android-sdk"
+          export ANDROID_HOME="$SDK_DIR"
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
           
-          # Принимаем лицензии (обязательно для sdkmanager)
-          yes | "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+          # Accept licenses
+          yes | sdkmanager --licenses || true
           
-          # Устанавливаем конкретную версию build-tools (должна совпадать с android.gradle_plugin)
-          # Версия 33.0.2 совместима с android.api = 33 и gradle plugin 7.4.2
-          "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" "build-tools;33.0.2"
+          # Install build-tools
+          sdkmanager "build-tools;33.0.2"
           
-          # Проверяем, что aidl теперь на месте
+          # Verify AIDL installation
           if [ -f "$SDK_DIR/build-tools/33.0.2/aidl" ]; then
             echo "✅ AIDL found: $SDK_DIR/build-tools/33.0.2/aidl"
           else
@@ -74,15 +94,15 @@ jobs:
 
       - name: Build APK with Buildozer
         run: |
-          cd .github/buildozer.spec  # ⚠️ Замените на вашу папку или уберите, если файлы в корне
+          cd .github
           
-          # Проверяем наличие spec-файла
+          # Check if spec file exists
           if [ ! -f buildozer.spec ]; then
             echo "❌ buildozer.spec not found!"
             buildozer init
           fi
           
-          # ✅ Важно: укажите версию build-tools в spec файле (см. ниже)
+          # Build APK
           buildozer -v android debug
 
       - name: Upload APK Artifact
