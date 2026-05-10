@@ -61,22 +61,22 @@ jobs:
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip
           unzip -q commandlinetools-linux-10406996_latest.zip
           
-          # Move to proper location - buildozer expects tools/bin/
-          mkdir -p "$SDK_DIR/tools/bin"
-          mv cmdline-tools/bin/* "$SDK_DIR/tools/bin/"
-          mv cmdline-tools/lib "$SDK_DIR/tools/"
+          # Move to proper location - sdkmanager requires cmdline-tools/latest/
+          mkdir -p "$SDK_DIR/cmdline-tools/latest"
+          mv cmdline-tools/* "$SDK_DIR/cmdline-tools/latest/"
           
           # Verify installation
-          if [ -f "$SDK_DIR/tools/bin/sdkmanager" ]; then
+          if [ -f "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" ]; then
             echo "✅ sdkmanager installed successfully"
           else
             echo "❌ sdkmanager installation failed!"
+            ls -la "$SDK_DIR/cmdline-tools/latest/"
             exit 1
           fi
 
       - name: Install Android Build-Tools
         run: |
-          export PATH="$ANDROID_HOME/tools/bin:$PATH"
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
           
           # Accept licenses
           yes | sdkmanager --licenses || true
