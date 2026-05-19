@@ -1,0 +1,95 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Phase 3: Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Phase 4: Validation Blueprints
+    
+    // User Validation
+    function isValidUser(data) {
+      return data.keys().hasAll(['userId', 'email', 'displayName', 'createdAt', 'photoURL'])
+        && data.userId == request.auth.uid;
+    }
+
+    // Account Validation
+    function isValidAccount(data) {
+      return data.keys().hasAll(['userId', 'balance', 'currency', 'updatedAt'])
+        && data.userId is string
+        && data.balance is number;
+    }
+
+    // Transaction Validation
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['amount', 'timestamp', 'type', 'description'])
+        && data.amount is number
+        && data.timestamp == request.time;
+    }
+
+    function isValidCard(data) {
+      return data.keys().hasAll(['userId', 'cardName', 'balance', 'cardNumber', 'expiry', 'cvv', 'type', 'status', 'pin', 'createdAt'])
+        && data.userId == request.auth.uid
+        && data.balance is number
+        && data.createdAt == request.time;
+    }
+
+    // Market Validation
+    function isValidMarket(data) {
+      return data.keys().hasAll(['totalBuyVolume', 'totalSellVolume', 'totalBuyCount', 'totalSellCount', 'basePrice', 'updatedAt'])
+        && data.updatedAt == request.time;
+    }
+
+    // Collection Rules
+    
+    // USERS
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && userId == request.auth.uid;
+    }
+
+    // ACCOUNTS
+    match /accounts/{userId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn(); // Relaxed for transfers
+    }
+
+    // TRANSACTIONS
+    match /transactions/{transactionId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+    }
+
+    // CARDS
+    match /cards/{cardId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // MARKET
+    match /market/{marketId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+  }
+}

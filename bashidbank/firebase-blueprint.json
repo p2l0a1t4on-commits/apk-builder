@@ -1,0 +1,105 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Public and private information about a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The unique ID of the user." },
+        "email": { "type": "string", "format": "email", "description": "User's email address." },
+        "displayName": { "type": "string", "description": "User's full name." },
+        "photoURL": { "type": "string", "description": "URL to user's profile picture." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the profile was created." }
+      },
+      "required": ["userId", "email", "displayName", "createdAt"]
+    },
+    "Account": {
+      "title": "Bank Account",
+      "description": "A user's account holding Bashids.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner of the account." },
+        "balance": { "type": "number", "description": "Current balance in BSD." },
+        "sartirCoinBalance": { "type": "number", "description": "Current balance of SartirCoin." },
+        "currency": { "type": "string", "enum": ["BSD"], "description": "Currency code." },
+        "subscriptionTier": { "type": "string", "enum": ["standard", "master"], "description": "User's subscription level." },
+        "subscriptionExpiresAt": { "type": "string", "format": "date-time", "description": "When the master subscription expires." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last time the balance was updated." }
+      },
+      "required": ["userId", "balance", "currency", "updatedAt"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A record of money transfer between users, accounts, or cards.",
+      "type": "object",
+      "properties": {
+        "fromUserId": { "type": "string", "description": "Sender user ID (null for card-sourced or inbound)." },
+        "toUserId": { "type": "string", "description": "Receiver user ID (null for card-destined or outbound)." },
+        "fromCardId": { "type": "string", "description": "Source card ID if applicable." },
+        "toCardId": { "type": "string", "description": "Destination card ID if applicable." },
+        "amount": { "type": "number", "description": "Amount transferred in BSD." },
+        "sartirCoinAmount": { "type": "number", "description": "Amount of SartirCoin traded." },
+        "fee": { "type": "number", "description": "Transaction commission paid by sender." },
+        "description": { "type": "string", "description": "Transaction details." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the transaction occurred." },
+        "type": { "type": "string", "enum": ["transfer", "deposit", "withdrawal", "subscription", "trade"], "description": "Type of transaction." }
+      },
+      "required": ["amount", "timestamp", "type"]
+    },
+    "Card": {
+      "title": "Debit Card",
+      "description": "A card associated with a user account.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner of the card." },
+        "cardName": { "type": "string", "description": "Friendly name for the card." },
+        "balance": { "type": "number", "description": "Independent balance for this card." },
+        "cardNumber": { "type": "string", "description": "Masked or full card number." },
+        "expiry": { "type": "string", "description": "MM/YY expiry date." },
+        "cvv": { "type": "string", "description": "Card security code." },
+        "type": { "type": "string", "enum": ["virtual", "physical"], "description": "Card type." },
+        "status": { "type": "string", "enum": ["active", "frozen"], "description": "Card status." },
+        "pin": { "type": "string", "description": "4-digit PIN for card operations." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp." }
+      },
+      "required": ["userId", "cardName", "balance", "cardNumber", "expiry", "cvv", "type", "status", "pin", "createdAt"]
+    },
+    "Market": {
+      "title": "Market State",
+      "description": "Global statistics for price calculation.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "totalBuyVolume": { "type": "number" },
+        "totalSellVolume": { "type": "number" },
+        "totalBuyCount": { "type": "number" },
+        "totalSellCount": { "type": "number" },
+        "basePrice": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["totalBuyVolume", "totalSellVolume", "totalBuyCount", "totalSellCount", "basePrice", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles."
+    },
+    "/accounts/{userId}": {
+      "schema": "Account",
+      "description": "User bank accounts (one per user for simplicity)."
+    },
+    "/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Log of all transactions."
+    },
+    "/cards/{cardId}": {
+      "schema": "Card",
+      "description": "User debit cards."
+    },
+    "/market/{marketId}": {
+      "schema": "Market",
+      "description": "Global market data."
+    }
+  }
+}
